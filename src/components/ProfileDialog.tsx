@@ -49,7 +49,7 @@ export const ProfileDialog = ({
           <div className="flex flex-col items-center">
             <Avatar className="w-24 h-24 mb-4 border-4 border-primary fire-glow">
               <AvatarFallback className="hell-gradient text-4xl text-white">
-                {user.nickname.charAt(0).toUpperCase()}
+                {user.nickname ? user.nickname.charAt(0).toUpperCase() : '😈'}
               </AvatarFallback>
             </Avatar>
             <p className="text-sm text-muted-foreground">Логин: @{user.username}</p>

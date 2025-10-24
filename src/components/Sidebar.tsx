@@ -90,7 +90,7 @@ export const Sidebar = ({
         className="w-12 h-12 border-2 border-primary cursor-pointer fire-glow"
       >
         <AvatarFallback className="hell-gradient text-white font-bold">
-          {user.nickname.charAt(0).toUpperCase()}
+          {user.nickname ? user.nickname.charAt(0).toUpperCase() : '😈'}
         </AvatarFallback>
       </Avatar>
     </div>
