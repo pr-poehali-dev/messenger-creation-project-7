@@ -1,14 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
+
+const API_AUTH = 'https://functions.poehali.dev/51609d55-b494-4cb9-a305-ed3ff2ae9075';
+const API_MESSAGES = 'https://functions.poehali.dev/fa7f98dc-53c9-465d-b4be-9ab077c3b0fb';
 
 interface Message {
   id: number;
+  sender_id: number;
+  receiver_id: number;
   text: string;
-  sender: 'me' | 'other';
   time: string;
 }
 
@@ -21,24 +27,124 @@ interface Chat {
   online: boolean;
 }
 
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  full_name: string;
+}
+
 const Index = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLogin, setIsLogin] = useState(true);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  
   const [activeSection, setActiveSection] = useState('chats');
-  const [selectedChat, setSelectedChat] = useState<number | null>(1);
+  const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [messageInput, setMessageInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: 'Привет! Как дела?', sender: 'other', time: '14:23' },
-    { id: 2, text: 'Отлично! Работаю над новым проектом', sender: 'me', time: '14:25' },
-    { id: 3, text: 'Звучит круто! Расскажешь подробнее?', sender: 'other', time: '14:26' },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  
+  const { toast } = useToast();
 
-  const [chats] = useState<Chat[]>([
-    { id: 1, name: 'Александр', lastMessage: 'Звучит круто! Расскажешь...', time: '14:26', unread: 0, online: true },
-    { id: 2, name: 'Мария', lastMessage: 'Отправила тебе файлы', time: '13:45', unread: 3, online: true },
-    { id: 3, name: 'Команда Разработки', lastMessage: 'Встреча в 15:00', time: '12:30', unread: 1, online: false },
-    { id: 4, name: 'Дмитрий', lastMessage: 'Спасибо за помощь!', time: 'Вчера', unread: 0, online: false },
-    { id: 5, name: 'Анна', lastMessage: 'Посмотри дизайн', time: 'Вчера', unread: 0, online: true },
-  ]);
+  const handleAuth = async () => {
+    try {
+      const response = await fetch(API_AUTH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: isLogin ? 'login' : 'register',
+          username,
+          email: isLogin ? undefined : email,
+          password,
+          full_name: isLogin ? undefined : fullName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUser(data);
+        localStorage.setItem('user', JSON.stringify(data));
+        toast({ title: isLogin ? 'Вход выполнен!' : 'Регистрация успешна!' });
+        loadChats(data.id);
+      } else {
+        toast({ title: 'Ошибка', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка сети', variant: 'destructive' });
+    }
+  };
+
+  const loadChats = async (userId: number) => {
+    try {
+      const response = await fetch(API_MESSAGES, {
+        headers: { 'X-User-Id': userId.toString() },
+      });
+      const data = await response.json();
+      setChats(data.chats || []);
+    } catch (error) {
+      console.error('Failed to load chats:', error);
+    }
+  };
+
+  const loadMessages = async (otherUserId: number) => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch(`${API_MESSAGES}?user_id=${otherUserId}`, {
+        headers: { 'X-User-Id': user.id.toString() },
+      });
+      const data = await response.json();
+      setMessages(data.messages || []);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !user || !selectedChat) return;
+
+    try {
+      const response = await fetch(API_MESSAGES, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id.toString(),
+        },
+        body: JSON.stringify({
+          receiver_id: selectedChat,
+          message_text: messageInput,
+        }),
+      });
+
+      const data = await response.json();
+      setMessages([...messages, data]);
+      setMessageInput('');
+      loadChats(user.id);
+    } catch (error) {
+      toast({ title: 'Ошибка отправки', variant: 'destructive' });
+    }
+  };
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      const userData = JSON.parse(savedUser);
+      setUser(userData);
+      loadChats(userData.id);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedChat && user) {
+      loadMessages(selectedChat);
+    }
+  }, [selectedChat]);
 
   const menuItems = [
     { id: 'chats', icon: 'MessageSquare', label: 'Чаты' },
@@ -49,23 +155,71 @@ const Index = () => {
     { id: 'settings', icon: 'Settings', label: 'Настройки' },
   ];
 
-  const handleSendMessage = () => {
-    if (!messageInput.trim()) return;
-
-    const newMessage: Message = {
-      id: messages.length + 1,
-      text: messageInput,
-      sender: 'me',
-      time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages([...messages, newMessage]);
-    setMessageInput('');
-  };
-
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md border-border bg-card">
+          <CardHeader>
+            <CardTitle className="text-center text-3xl neon-text text-primary">
+              {isLogin ? 'Вход' : 'Регистрация'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              placeholder="Имя пользователя"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="bg-input border-border"
+            />
+            {!isLogin && (
+              <>
+                <Input
+                  placeholder="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-input border-border"
+                />
+                <Input
+                  placeholder="Полное имя"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="bg-input border-border"
+                />
+              </>
+            )}
+            <Input
+              placeholder="Пароль"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+              className="bg-input border-border"
+            />
+            <Button
+              onClick={handleAuth}
+              className="w-full bg-gradient-to-r from-primary to-secondary neon-glow"
+            >
+              {isLogin ? 'Войти' : 'Зарегистрироваться'}
+            </Button>
+            <p className="text-center text-muted-foreground text-sm">
+              {isLogin ? 'Нет аккаунта?' : 'Уже есть аккаунт?'}{' '}
+              <button
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-primary hover:underline"
+              >
+                {isLogin ? 'Зарегистрируйтесь' : 'Войдите'}
+              </button>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex bg-background text-foreground overflow-hidden">
@@ -94,7 +248,7 @@ const Index = () => {
 
         <Avatar className="w-12 h-12 border-2 border-primary cursor-pointer">
           <AvatarFallback className="bg-gradient-to-br from-secondary to-accent text-foreground font-semibold">
-            Я
+            {user.username.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
       </div>
@@ -153,7 +307,31 @@ const Index = () => {
             </div>
           ))}
 
-          {activeSection !== 'chats' && (
+          {activeSection === 'profile' && (
+            <div className="p-6 space-y-4">
+              <div className="flex flex-col items-center">
+                <Avatar className="w-24 h-24 mb-4 border-4 border-primary neon-glow">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-2xl">
+                    {user.username.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <h3 className="text-xl font-bold">{user.full_name || user.username}</h3>
+                <p className="text-sm text-muted-foreground">@{user.username}</p>
+              </div>
+              <Button
+                onClick={() => {
+                  setUser(null);
+                  localStorage.removeItem('user');
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                Выйти
+              </Button>
+            </div>
+          )}
+
+          {activeSection !== 'chats' && activeSection !== 'profile' && (
             <div className="flex items-center justify-center h-64 text-muted-foreground">
               <div className="text-center">
                 <Icon name="Construction" size={48} className="mx-auto mb-4 opacity-50" />
@@ -199,17 +377,17 @@ const Index = () => {
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex ${message.sender === 'me' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${message.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
                       className={`max-w-md px-4 py-2 rounded-2xl transition-all duration-200 ${
-                        message.sender === 'me'
+                        message.sender_id === user.id
                           ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground neon-glow'
                           : 'bg-card border border-border'
                       }`}
                     >
                       <p className="mb-1">{message.text}</p>
-                      <span className={`text-xs ${message.sender === 'me' ? 'opacity-80' : 'text-muted-foreground'}`}>
+                      <span className={`text-xs ${message.sender_id === user.id ? 'opacity-80' : 'text-muted-foreground'}`}>
                         {message.time}
                       </span>
                     </div>

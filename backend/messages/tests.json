@@ -1,0 +1,35 @@
+{
+  "tests": [
+    {
+      "name": "Get chat list",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "chats": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Send message",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "body": {
+        "receiver_id": 2,
+        "message_text": "Test message"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "id": "number",
+        "text": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
