@@ -1,0 +1,36 @@
+{
+  "tests": [
+    {
+      "name": "Get user groups",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "groups": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create new group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "body": {
+        "action": "create",
+        "name": "Test Group",
+        "description": "Test description"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "id": "number",
+        "name": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
